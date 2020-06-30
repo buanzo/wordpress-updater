@@ -310,6 +310,7 @@ DocumentRoots from.''')
                         action='store_true',
                         dest='full',
                         help='Updates all, and deletes expired transients.')
+    parser.add_argument('--version', action='version', version=str(__version__))
     parser.add_argument('-v','--verbose',
                         default=False,
                         action='store_true',

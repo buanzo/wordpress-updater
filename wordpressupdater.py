@@ -94,7 +94,8 @@ class DO_WP_Maintain():
                                     'siteurl': siteurl,})
         return(wp_list)
 
-    def _run(self,cmd, timeout=10):  # cmd must be a []
+    def _run(self,cmd, timeout=60):  # cmd must be a []
+        # Is one minute enough as a timeout?
         # This function returns a dictionary
         # status = exit status
         # stdout = utf8-decoded stdout

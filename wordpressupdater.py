@@ -8,7 +8,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = 0.1
+__version__ = 0.2
 
 def printerr(x):
     print(x,file=sys.stderr)
@@ -140,6 +140,17 @@ class DO_WP_Maintain():
             if r['status'] > 0:
                 printerr('Error updating core {}: {}'.format(path, r['stderr']))
 
+    def update_db(self):
+        args = ['core', 'update-db']
+        for site in self.wp_list:
+            path = site['path']
+            if self.verbose:
+                printerr('Updating Wordpress Database in {}'.format(path))
+            r = self.wp_run(path=path, args=args)
+            pprint(r)
+            if r['status'] > 0:
+                printerr('Error updating database {}: {}'.format(path, r['stderr']))
+
     def update_plugins(self):
         args = ['plugin', 'update', '--all']
         for site in self.wp_list:
@@ -269,6 +280,11 @@ DocumentRoots from.''')
                         action='store_true',
                         dest='update_core',
                         help='Apply WP Core updates.')
+    parser.add_argument('-D','--update-db',
+                        default=False,
+                        action='store_true',
+                        dest='update_db',
+                        help='Apply WP Database updates.')
     parser.add_argument('-P','--update-plugins',
                         default=False,
                         action='store_true',
@@ -325,6 +341,9 @@ DocumentRoots from.''')
 
     if args.update_core or args.update_all or args.full:
         dowp.update_core()
+
+    if args.update_db or args.update_all or args.full:
+        dowp.update_db()
 
     if args.update_plugins or args.update_all or args.full:
         dowp.update_plugins()

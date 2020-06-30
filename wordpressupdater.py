@@ -159,6 +159,12 @@ class DO_WP_Maintain():
             if r['status'] > 0:
                 printerr('Error updating themes {}: {}'.format(path, r['stderr']))
 
+    def update_wpcli(self):
+        args = ['cli','update','--yes']
+        r = self.wp_run(path='/tmp', args=args)
+        if r['status'] > 0:
+            printerr('Error updating WP-CLI itself: {}'.format(r['stderr']))
+
     def delete_expired_transients(self):
         args = ['transient', 'delete', '--expired']
         for site in self.wp_list:
@@ -309,6 +315,8 @@ DocumentRoots from.''')
         printerr(exc)
         sys.exit(1)
     
+    dowp.update_wpcli()
+
     if args.list_only is True:  # Just list
         for wp in dowp.wp_list:
             pprint(wp)  # TODO: pretty print

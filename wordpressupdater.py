@@ -8,7 +8,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = 0.4
+__version__ = 0.4.1
 
 
 def printerr(x):
@@ -390,7 +390,7 @@ DocumentRoots from.''')
                               configpaths=args.file,
                               allow_root=args.allow_root,
                               verbose=args.verbose,
-                              hume=hume)
+                              hume=args.hume)
     except Exception as exc:
         printerr(exc)
         sys.exit(1)

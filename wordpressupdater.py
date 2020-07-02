@@ -10,12 +10,14 @@ from pprint import pprint
 
 __version__ = 0.3
 
+
 def printerr(x):
-    print(x,file=sys.stderr)
+    print(x, file=sys.stderr)
+
 
 def pprinterr(x):
     from pprint import pprint
-    pprint(x,stream=sys.stderr)
+    pprint(x, stream=sys.stderr)
 
 
 class DO_WP_Maintain():
@@ -23,7 +25,8 @@ class DO_WP_Maintain():
                  configpaths=None,
                  requiredtags=None,
                  allow_root=False,
-                 verbose=False):
+                 verbose=False,
+                 hume=False):
         # Always priority:
         if allow_root is False and os.geteuid() == 0:
             printerr('Running as root is not allowed. Check --help.')
@@ -31,11 +34,11 @@ class DO_WP_Maintain():
 
         # Internal config
         self.DOMETAURLJSON = 'http://169.254.169.254/metadata/v1.json'
-
         # Internal setup
         self.allow_root = allow_root
         self.configpaths = configpaths
         self.verbose = verbose
+        self.hume = hume
 
         # Tag matching functionality only works in DigitalOcean Droplets:
         if requiredtags is not None:
@@ -47,10 +50,19 @@ class DO_WP_Maintain():
                 raise(RuntimeError("Droplet lacks indicated tag requirements"))
 
         # Other runtime checks:
+        if self.hume:  # Test
+            try:
+                import hume
+            except ModuleNotFoundError:
+                printerr('''--hume specified but cannot load hume module.
+You might need to install and configure humed. Check
+https://github.com/buanzo/hume/wiki''')
+                sys.exit(10)
+
         self.roots_list = self.get_apache2_documentroots()
         if len(self.roots_list) == 0:
-            raise(RuntimeError("No Apache2 DocumentRoots found. Check provided paths."))
-        
+            raise(RuntimeError("No Apache2 DocumentRoots found. Check paths."))
+
         if self.verbose:
             printerr('DocumentRoots: {}'.format(' '.join(self.roots_list)))
         self.wp_list = self.get_wp_list()
@@ -79,29 +91,28 @@ class DO_WP_Maintain():
                 potential = os.path.dirname(item)
                 version = self._wp_get_version(path=potential)
                 if self.verbose:
-                    printerr('{}: Found in {}'.format(path,item))
+                    printerr('{}: Found in {}'.format(path, item))
                 if version is None:  # no version? skip.
                     if self.verbose:
                         printerr('{}: no version. skipping.'.format(potential))
                     continue
                 else:  # If we can get the version, get more data
-                    #printerr('{} => Wordpress {}'.format(potential, version))
                     blogname = self._wp_get_blogname(path=potential)
                     siteurl = self._wp_get_siteurl(path=potential)
                     wp_list.append({'path': potential,
                                     'version': version,
                                     'title': blogname,
-                                    'siteurl': siteurl,})
+                                    'siteurl': siteurl, })
         return(wp_list)
 
-    def _run(self,cmd, timeout=60):  # cmd must be a []
+    def _run(self, cmd, timeout=60):  # cmd must be a []
         # Is one minute enough as a timeout?
         # This function returns a dictionary
         # status = exit status
         # stdout = utf8-decoded stdout
         # stderr = utf8-decoded stderr
         # Does NOT manage stdin
-        if not isinstance(cmd,list):
+        if not isinstance(cmd, list):
             raise(ValueError("cmd is not a list"))
         result = subprocess.run(cmd,
                                 timeout=timeout,  # 10s default
@@ -121,8 +132,8 @@ class DO_WP_Maintain():
         cmd.extend(args)
         return(self._run(cmd))
 
-    def _wp_get_version(self,path):
-        args = ['core','version',]
+    def _wp_get_version(self, path):
+        args = ['core', 'version', ]
         version = self.wp_run(path=path, args=args)['stdout'].strip()
         if len(version) > 0:
             return(version)
@@ -138,7 +149,12 @@ class DO_WP_Maintain():
             r = self.wp_run(path=path, args=args)
             pprint(r)
             if r['status'] > 0:
-                printerr('Error updating core {}: {}'.format(path, r['stderr']))
+                msg = 'Error updating core {}: {}'.format(path, r['stderr'])
+                printerr(msg)
+                if self.hume:
+                    self.Hume({'level': 'warning',
+                               'msg': msg,
+                               'task': 'WPUPDATER'})
 
     def update_db(self):
         args = ['core', 'update-db']
@@ -149,7 +165,13 @@ class DO_WP_Maintain():
             r = self.wp_run(path=path, args=args)
             pprint(r)
             if r['status'] > 0:
-                printerr('Error updating database {}: {}'.format(path, r['stderr']))
+                msg = 'Error updating database {}: {}'.format(path,
+                                                              r['stderr'])
+                printerr(msg)
+                if self.hume:
+                    self.Hume({'level': 'warning',
+                               'msg': msg,
+                               'task': 'WPUPDATER'})
 
     def update_plugins(self):
         args = ['plugin', 'update', '--all']
@@ -159,7 +181,12 @@ class DO_WP_Maintain():
                 printerr('Updating All Wordpress Plugins in {}'.format(path))
             r = self.wp_run(path=path, args=args)
             if r['status'] > 0:
-                printerr('Error updating plugins {}: {}'.format(path, r['stderr']))
+                msg = 'Error updating plugins {}: {}'.format(path, r['stderr'])
+                printerr(msg)
+                if self.hume:
+                    self.Hume({'level': 'warning',
+                               'msg': msg,
+                               'task': 'WPUPDATER'})
 
     def update_themes(self):
         args = ['theme', 'update', '--all']
@@ -169,13 +196,23 @@ class DO_WP_Maintain():
                 printerr('Updating All Wordpress Themes in {}'.format(path))
             r = self.wp_run(path=path, args=args)
             if r['status'] > 0:
-                printerr('Error updating themes {}: {}'.format(path, r['stderr']))
+                msg = 'Error updating themes {}: {}'.format(path, r['stderr'])
+                printerr(msg)
+                if self.hume:
+                    self.Hume({'level': 'warning',
+                               'msg': msg,
+                               'task': 'WPUPDATER'})
 
     def update_wpcli(self):
-        args = ['cli','update','--yes']
+        args = ['cli', 'update', '--yes']
         r = self.wp_run(path='/tmp', args=args)
         if r['status'] > 0:
-            printerr('Error updating WP-CLI itself: {}'.format(r['stderr']))
+            msg = 'Error updating WP-CLI itself: {}'.format(r['stderr'])
+            printerr(msg)
+            if self.hume:
+                self.Hume({'level': 'warning',
+                           'msg': msg,
+                           'task': 'WPUPDATER'})
 
     def delete_expired_transients(self):
         args = ['transient', 'delete', '--expired']
@@ -185,15 +222,21 @@ class DO_WP_Maintain():
                 printerr('Deleting expired transients in {}'.format(path))
             r = self.wp_run(path=path, args=args)
             if r['status'] > 0:
-                printerr('Error deleting expired transients {}: {}'.format(path, r['stderr']))
+                msg = 'Error deleting transients {}: {}'.format(path,
+                                                                r['stderr'])
+                printerr(msg)
+                if self.hume:
+                    self.Hume({'level': 'warning',
+                               'msg': msg,
+                               'task': 'WPUPDATER'})
 
-    def _wp_get_blogname(self,path):
-        args = ['option','get','blogname',]
+    def _wp_get_blogname(self, path):
+        args = ['option', 'get', 'blogname', ]
         blogname = self.wp_run(path=path, args=args)['stdout'].strip()
         return(blogname)
 
-    def _wp_get_siteurl(self,path):
-        args = ['option','get','siteurl',]
+    def _wp_get_siteurl(self, path):
+        args = ['option', 'get', 'siteurl', ]
         siteurl = self.wp_run(path=path, args=args)['stdout'].strip()
         return(siteurl)
 
@@ -213,7 +256,7 @@ class DO_WP_Maintain():
     def _extract_documentroots(self, myDict, someList=None):
         # Credits to https://www.reddit.com/user/pushme2/
         # https://www.reddit.com/r/learnpython/comments/25im14/python_3_searching_recursively_through_a/
-        if someList == None:
+        if someList is None:
             myList = []
         else:
             myList = someList
@@ -241,10 +284,20 @@ class DO_WP_Maintain():
                 with make_loader(**options) as loader:
                     config = loader.load(configpath)
             except Exception as exc:
-                printerr('Issue loading Apache config {}: {}'.format(configpath, exc))
+                msg = 'Issue loading Apache config {}: {}'.format(configpath,
+                                                                  exc)
+                printerr(msg)
+                if self.hume:
+                    self.Hume({'level': 'critical',
+                               'msg': msg,
+                               'task': 'WPUPDATER'})
             documentroots.extend(self._extract_documentroots(config))
         documentroots = list(set(documentroots))
         return(documentroots)
+
+    def Hume(self, msg):
+        hume.Hume(msg).send()
+
 
 def run():
     # TODO: ArgParse for droplet required tags
@@ -253,7 +306,7 @@ maintenance tasks on servers that use Apache2, with a few useful features on
 DigitalOcean droplets.
 Future versions may support nginx/lighttpd.
 Author: Buanzo - https://www.github.com/buanzo''')
-    parser.add_argument('-t','--tags',
+    parser.add_argument('-t', '--tags',
                         type=lambda arg: arg.split(','),
                         action='append',
                         default=None,
@@ -275,32 +328,32 @@ DocumentRoots from.''')
                         action='store_true',
                         dest='list_only',
                         help='List Wordpress installations that were found.')
-    parser.add_argument('-C','--update-core',
+    parser.add_argument('-C', '--update-core',
                         default=False,
                         action='store_true',
                         dest='update_core',
                         help='Apply WP Core updates.')
-    parser.add_argument('-D','--update-db',
+    parser.add_argument('-D', '--update-db',
                         default=False,
                         action='store_true',
                         dest='update_db',
                         help='Apply WP Database updates.')
-    parser.add_argument('-P','--update-plugins',
+    parser.add_argument('-P', '--update-plugins',
                         default=False,
                         action='store_true',
                         dest='update_plugins',
                         help='Update all plugins.')
-    parser.add_argument('-T','--update-themes',
+    parser.add_argument('-T', '--update-themes',
                         default=False,
                         action='store_true',
                         dest='update_themes',
                         help='Update all themes.')
-    parser.add_argument('-A','--update-all',
+    parser.add_argument('-A', '--update-all',
                         default=False,
                         action='store_true',
                         dest='update_all',
                         help='Updates core, plugins and themes.')
-    parser.add_argument('-E','--delete-expired-transients',
+    parser.add_argument('-E', '--delete-expired-transients',
                         default=False,
                         action='store_true',
                         dest='delete_expired_transients',
@@ -310,8 +363,14 @@ DocumentRoots from.''')
                         action='store_true',
                         dest='full',
                         help='Updates all, and deletes expired transients.')
-    parser.add_argument('--version', action='version', version=str(__version__))
-    parser.add_argument('-v','--verbose',
+    parser.add_argument('--hume',
+                        action='store_true',
+                        dest='hume',
+                        help='Emits hume messages on error only. Needs humed.')
+    parser.add_argument('--version',
+                        action='version',
+                        version='WordpressUpdater {}'.format(str(__version__)))
+    parser.add_argument('-v', '--verbose',
                         default=False,
                         action='store_true',
                         dest='verbose',
@@ -319,20 +378,23 @@ DocumentRoots from.''')
     # Now, parse the args
     args = parser.parse_args()
     if args.requiredtags is not None:
-        args.requiredtags = [item for sublist in args.requiredtags for item in sublist]
+        args.requiredtags = [item for sublist
+                             in args.requiredtags
+                             for item in sublist]
     else:
         args.requiredtags = None
-    
+
     # IT HAS BEGUN!
     try:
         dowp = DO_WP_Maintain(requiredtags=args.requiredtags,
                               configpaths=args.file,
                               allow_root=args.allow_root,
-                              verbose=args.verbose)
+                              verbose=args.verbose,
+                              hume=hume)
     except Exception as exc:
         printerr(exc)
         sys.exit(1)
-    
+
     dowp.update_wpcli()
 
     if args.list_only is True:  # Just list
@@ -354,6 +416,7 @@ DocumentRoots from.''')
 
     if args.delete_expired_transients or args.full:
         dowp.delete_expired_transients()
+
 
 if __name__ == '__main__':
     run()

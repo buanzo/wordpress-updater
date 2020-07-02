@@ -8,7 +8,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = 0.4.1
+__version__ = 0.5
 
 
 def printerr(x):

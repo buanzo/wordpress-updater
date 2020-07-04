@@ -29,7 +29,12 @@ class DO_WP_Maintain():
                  hume=False):
         # Always priority:
         if allow_root is False and os.geteuid() == 0:
-            printerr('Running as root is not allowed. Check --help.')
+            msg = 'Running as root is not allowed. Check --help.'
+            printerr(msg)
+            if self.hume:
+                self.Hume({'level': 'error',
+                           'msg': msg,
+                           'task': 'WPUPDATER'})
             sys.exit(1)
 
         # Internal config
@@ -39,15 +44,6 @@ class DO_WP_Maintain():
         self.configpaths = configpaths
         self.verbose = verbose
         self.hume = hume
-
-        # Tag matching functionality only works in DigitalOcean Droplets:
-        if requiredtags is not None:
-            self.requiredtags = set(requiredtags)   # remove dupes
-            self.metadata = self.get_do_metadata()  # MAY return None
-            if not self.is_droplet():
-                raise(RuntimeError("Required tags only work on DigitalOcean"))
-            if self.valid_droplet_tags() is False:
-                raise(RuntimeError("Droplet lacks indicated tag requirements"))
 
         # Other runtime checks:
         if self.hume:  # Test
@@ -59,9 +55,34 @@ You might need to install and configure humed. Check
 https://github.com/buanzo/hume/wiki''')
                 sys.exit(10)
 
+        # Tag matching functionality only works in DigitalOcean Droplets:
+        if requiredtags is not None:
+            self.requiredtags = set(requiredtags)   # remove dupes
+            self.metadata = self.get_do_metadata()  # MAY return None
+            if not self.is_droplet():
+                msg = "Required tags only work on DigitalOcean"
+                if self.hume:
+                    self.Hume({'level': 'error',
+                               'msg': msg,
+                               'task': 'WPUPDATER'})
+                raise(RuntimeError(msg))
+            if self.valid_droplet_tags() is False:
+                msg = "Droplet lacks indicated tag requirements"
+                if self.hume:
+                    self.Hume({'level': 'error',
+                               'msg': msg,
+                               'task': 'WPUPDATER'})
+                raise(RuntimeError(msg))
+
+
         self.roots_list = self.get_apache2_documentroots()
         if len(self.roots_list) == 0:
-            raise(RuntimeError("No Apache2 DocumentRoots found. Check paths."))
+            msg = "No Apache2 DocumentRoots found. Check paths."
+            if self.hume:
+                self.Hume({'level': 'error',
+                           'msg': msg,
+                           'task': 'WPUPDATER'})
+            raise(RuntimeError(msg))
 
         if self.verbose:
             printerr('DocumentRoots: {}'.format(' '.join(self.roots_list)))

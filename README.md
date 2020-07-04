@@ -19,6 +19,10 @@ parameters. This functionality is only available on DigitalOcean droplets.
 Installation is done through pip3, please check the wiki for more
 information: https://www.github.com/buanzo/wordpress-updater/wiki
 
+Since version 0.5, wordpress-updaters supports reporting of non-zero exit
+status of wp-cli commands, and other errors, using Hume:
+https://www.github.com/buanzo/hume/wiki
+
 Cheers!
 
 Arturo 'Buanzo' Busleiman

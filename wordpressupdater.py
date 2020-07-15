@@ -8,7 +8,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = 0.5
+__version__ = '0.5.2'
 
 
 def printerr(x):
@@ -168,7 +168,6 @@ https://github.com/buanzo/hume/wiki''')
             if self.verbose:
                 printerr('Updating Wordpress Core in {}'.format(path))
             r = self.wp_run(path=path, args=args)
-            pprint(r)
             if r['status'] > 0:
                 msg = 'Error updating core {}: {}'.format(path, r['stderr'])
                 printerr(msg)
@@ -184,7 +183,6 @@ https://github.com/buanzo/hume/wiki''')
             if self.verbose:
                 printerr('Updating Wordpress Database in {}'.format(path))
             r = self.wp_run(path=path, args=args)
-            pprint(r)
             if r['status'] > 0:
                 msg = 'Error updating database {}: {}'.format(path,
                                                               r['stderr'])
@@ -194,15 +192,37 @@ https://github.com/buanzo/hume/wiki''')
                                'msg': msg,
                                'task': 'WPUPDATER'})
 
+    def get_plugin_list(self,path):
+        wpl = []
+        for status in 'active','inactive':
+            args = ['plugin', 'list','--status={}'.format(status), '--field=name']
+            r = self.wp_run(path=path, args=args)
+            _wpl = r['stdout'].split('\n')
+            _wpl = [x for x in _wpl if x]
+            wpl.extend(_wpl)
+        return(wpl)
+    
     def update_plugins(self):
-        args = ['plugin', 'update', '--all']
         for site in self.wp_list:
             path = site['path']
             if self.verbose:
-                printerr('Updating All Wordpress Plugins in {}'.format(path))
+                printerr('Getting list of Wordpress Plugins in {}'.format(path))
+            wpl = self.get_plugin_list(path=path)
+            for pluginName in wpl:
+                self.update_plugin(pluginName)
+
+    def update_plugin(self,pluginName):
+        args = ['plugin', 'update', pluginName]
+        for site in self.wp_list:
+            path = site['path']
+            if self.verbose:
+                printerr('Updating Wordpress Plugin {} in {}'.format(pluginName,
+                                                                     path))
             r = self.wp_run(path=path, args=args)
             if r['status'] > 0:
-                msg = 'Error updating plugins {}: {}'.format(path, r['stderr'])
+                msg = 'Error updating plugin {} in {}: {}'.format(pluginName,
+                                                                  path,
+                                                                  r['stderr'])
                 printerr(msg)
                 if self.hume:
                     self.Hume({'level': 'warning',
@@ -317,8 +337,17 @@ https://github.com/buanzo/hume/wiki''')
         return(documentroots)
 
     def Hume(self, msg):
+        try:
+            import hume
+        except ImportError:
+            printerr('''wordpressupdater: hume is not available.
+Check out https://www.github.com/buanzo/hume/wiki''')
+        except Exception as exc:
+            printerr('Error loading hume module:')
+            printerr(exc)
+            printerr('Continuing...')
+            return(None)
         hume.Hume(msg).send()
-
 
 def run():
     # TODO: ArgParse for droplet required tags

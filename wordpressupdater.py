@@ -8,7 +8,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = '0.5.2'
+__version__ = '0.5.3'
 
 
 def printerr(x):
@@ -209,25 +209,23 @@ https://github.com/buanzo/hume/wiki''')
                 printerr('Getting list of Wordpress Plugins in {}'.format(path))
             wpl = self.get_plugin_list(path=path)
             for pluginName in wpl:
-                self.update_plugin(pluginName)
+                self.update_plugin(pluginName,path=path)
 
-    def update_plugin(self,pluginName):
+    def update_plugin(self,pluginName,path):
         args = ['plugin', 'update', pluginName]
-        for site in self.wp_list:
-            path = site['path']
-            if self.verbose:
-                printerr('Updating Wordpress Plugin {} in {}'.format(pluginName,
-                                                                     path))
-            r = self.wp_run(path=path, args=args)
-            if r['status'] > 0:
-                msg = 'Error updating plugin {} in {}: {}'.format(pluginName,
-                                                                  path,
-                                                                  r['stderr'])
-                printerr(msg)
-                if self.hume:
-                    self.Hume({'level': 'warning',
-                               'msg': msg,
-                               'task': 'WPUPDATER'})
+        if self.verbose:
+            printerr('Updating Wordpress Plugin {} in {}'.format(pluginName,
+                                                                 path))
+        r = self.wp_run(path=path, args=args)
+        if r['status'] > 0:
+            msg = 'Error updating plugin {} in {}: {}'.format(pluginName,
+                                                              path,
+                                                              r['stderr'])
+            printerr(msg)
+            if self.hume:
+                self.Hume({'level': 'warning',
+                           'msg': msg,
+                           'task': 'WPUPDATER'})
 
     def update_themes(self):
         args = ['theme', 'update', '--all']

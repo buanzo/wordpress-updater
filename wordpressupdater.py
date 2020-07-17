@@ -19,14 +19,18 @@ def pprinterr(x):
     from pprint import pprint
     pprint(x, stream=sys.stderr)
 
-
 class DO_WP_Maintain():
     def __init__(self,
                  configpaths=None,
                  requiredtags=None,
                  allow_root=False,
                  verbose=False,
-                 hume=False):
+                 hume=False,
+                 skip_plugins=None):
+
+        # Even higher priority
+        self.hume = hume
+
         # Always priority:
         if allow_root is False and os.geteuid() == 0:
             msg = 'Running as root is not allowed. Check --help.'
@@ -43,8 +47,6 @@ class DO_WP_Maintain():
         self.allow_root = allow_root
         self.configpaths = configpaths
         self.verbose = verbose
-        self.hume = hume
-
         # Other runtime checks:
         if self.hume:  # Test
             try:
@@ -74,6 +76,22 @@ https://github.com/buanzo/hume/wiki''')
                                'task': 'WPUPDATER'})
                 raise(RuntimeError(msg))
 
+        # Skip_Plugins check needs to go after populating self.wp_list
+        self.skip_plugins = []
+        if skip_plugins is not None:
+            for item in skip_plugins:
+                # skip plugins supports both plugin_name and PATH:plugin_name
+                # This way we can skip a specific plugin in a specific PATH
+                # or skip updating a specific plugin GLOBALLY.
+                if self.valid_skip_plugin_spec(item):
+                    self.skip_plugins.append(item)
+                else:
+                    msg = '"{}" is not a valid plugin name. Skipping.'.format(item)
+                    printerr(msg)
+                    if self.hume:
+                        self.Hume({'level': 'warning',
+                                   'msg': msg,
+                                   'task': 'WPUPDATER'})
 
         self.roots_list = self.get_apache2_documentroots()
         if len(self.roots_list) == 0:
@@ -87,6 +105,7 @@ https://github.com/buanzo/hume/wiki''')
         if self.verbose:
             printerr('DocumentRoots: {}'.format(' '.join(self.roots_list)))
         self.wp_list = self.get_wp_list()
+
 
     def is_droplet(self):
         if self.metadata is None:  # self.metadata is loaded on __init__
@@ -211,7 +230,25 @@ https://github.com/buanzo/hume/wiki''')
             for pluginName in wpl:
                 self.update_plugin(pluginName,path=path)
 
+    def skip_plugin_update(self,pluginName,path):
+        for item in self.skip_plugins:
+            if item.count(':') == 0:
+                # assume it is a pluginName global skip spec
+                if pluginName == item:
+                    return(True)
+            elif item.count(':') == 1:
+                # path:pluginName
+                c = '{}:{}'.format(path,pluginName)
+                if c == item:
+                    return(True)
+        return(False)
+
     def update_plugin(self,pluginName,path):
+        if self.skip_plugin_update(pluginName,path):
+            if self.verbose:
+                printerr('Skipping update of "{}" in "{}"'.format(pluginName,
+                                                                  path))
+            return
         args = ['plugin', 'update', pluginName]
         if self.verbose:
             printerr('Updating Wordpress Plugin {} in {}'.format(pluginName,
@@ -290,6 +327,20 @@ https://github.com/buanzo/hume/wiki''')
     def valid_droplet_tags(self):
         if self.requiredtags.issubset(self.metadata["tags"]):
             return(True)
+        return(False)
+
+    def valid_skip_plugin_spec(self,item):
+        # TODO: regex for wordpress plugin names
+        if item.count(':') == 0:
+            # FIX: some useful regex for plugin names
+            # In any case we will compare against dynamic plugin list
+            return(True)
+        elif item.count(':') == 1:
+            # FIX: validate path and plugin name
+            # But... as above: we will compare against dynamic list
+            return(True)
+        else:
+            return(False)
         return(False)
 
     def _extract_documentroots(self, myDict, someList=None):
@@ -423,6 +474,18 @@ DocumentRoots from.''')
                         action='store_true',
                         dest='verbose',
                         help='Be more verbose.')
+    parser.add_argument('-W', '--skip-wpcli-update',
+                        default=False,
+                        action='store_true',
+                        dest='skip_wpcli_update',
+                        help='Do not update WP-CLI on startup')
+    parser.add_argument('--skip-plugin',
+                        action='append',
+                        dest='skip_plugins',
+                        metavar='PLUGIN_NAME',
+                        help='''Skip updating the indicated plugin. Can be specified multiple names.
+Multiple values separated by commas are NOT allowed''')
+
     # Now, parse the args
     args = parser.parse_args()
     if args.requiredtags is not None:
@@ -438,12 +501,14 @@ DocumentRoots from.''')
                               configpaths=args.file,
                               allow_root=args.allow_root,
                               verbose=args.verbose,
-                              hume=args.hume)
+                              hume=args.hume,
+                              skip_plugins=args.skip_plugins)
     except Exception as exc:
         printerr(exc)
         sys.exit(1)
 
-    dowp.update_wpcli()
+    if args.skip_wpcli_update is False:
+        dowp.update_wpcli()
 
     if args.list_only is True:  # Just list
         for wp in dowp.wp_list:

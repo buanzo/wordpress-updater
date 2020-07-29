@@ -8,7 +8,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = '0.5.4'
+__version__ = '0.5.5'
 
 
 def printerr(x):
@@ -25,6 +25,7 @@ class DO_WP_Maintain():
                  requiredtags=None,
                  allow_root=False,
                  verbose=False,
+                 debug=False,
                  hume=False,
                  skip_plugins=None):
 
@@ -47,6 +48,7 @@ class DO_WP_Maintain():
         self.allow_root = allow_root
         self.configpaths = configpaths
         self.verbose = verbose
+        self.debug = debug
         # Other runtime checks:
         if self.hume:  # Test
             try:
@@ -316,6 +318,26 @@ https://github.com/buanzo/hume/wiki''')
         siteurl = self.wp_run(path=path, args=args)['stdout'].strip()
         return(siteurl)
 
+    def run_custom_cmds(self, cmds):
+        for cmd in cmds:
+            args = cmd.split(' ')
+            for site in self.wp_list:
+                path = site['path']
+                if self.verbose:
+                    printerr('Running {} in {}'.format(cmd, path))
+                r = self.wp_run(path=path, args=args)
+                if r['status'] > 0:
+                    msg = 'Error running "{}" in {}: {}'.format(cmd, path,
+                                                                r['stderr'])
+                    printerr(msg)
+                    if self.hume:
+                        self.Hume({'level': 'warning',
+                                   'msg': msg,
+                                   'task': 'WPUPDATER'})
+                else:
+                    if self.verbose:
+                        printerr(r['stdout'])
+
     def get_do_metadata(self):
         try:
             j = requests.get(self.DOMETAURLJSON).json()
@@ -351,6 +373,8 @@ https://github.com/buanzo/hume/wiki''')
         else:
             myList = someList
         for key, value in myDict.items():
+            if self.debug:
+                printerr('Processing key {} of type {}'.format(key,type(key)))
             if isinstance(value, dict):
                 self._extract_documentroots(value, myList)
             else:
@@ -474,6 +498,11 @@ DocumentRoots from.''')
                         action='store_true',
                         dest='verbose',
                         help='Be more verbose.')
+    parser.add_argument('-d', '--debug',
+                        default=False,
+                        action='store_true',
+                        dest='debug',
+                        help='Enable debugging messages.')
     parser.add_argument('-W', '--skip-wpcli-update',
                         default=False,
                         action='store_true',
@@ -485,6 +514,13 @@ DocumentRoots from.''')
                         metavar='PLUGIN_NAME',
                         help='''Skip updating the indicated plugin. Can be specified multiple names.
 Multiple values separated by commas are NOT allowed''')
+    parser.add_argument('--run',
+                        action='append',
+                        dest='custom_cmds',
+                        metavar='"WPCLI_COMMAND"',
+                        help='''Construct and run a wp-cli command on each wordpress instance.
+Necessary arguments will be automatically added.
+Example: --run="plugin install wp-fail2ban --activate"''')
 
     # Now, parse the args
     args = parser.parse_args()
@@ -501,6 +537,7 @@ Multiple values separated by commas are NOT allowed''')
                               configpaths=args.file,
                               allow_root=args.allow_root,
                               verbose=args.verbose,
+                              debug=args.debug,
                               hume=args.hume,
                               skip_plugins=args.skip_plugins)
     except Exception as exc:
@@ -529,6 +566,9 @@ Multiple values separated by commas are NOT allowed''')
 
     if args.delete_expired_transients or args.full:
         dowp.delete_expired_transients()
+
+    if args.custom_cmds:
+        dowp.run_custom_cmds(args.custom_cmds)
 
 
 if __name__ == '__main__':

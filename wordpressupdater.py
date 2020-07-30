@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import os
 import sys
+import json
+import shutil
 import requests
 import argparse
 import subprocess
@@ -8,7 +10,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = '0.5.5'
+__version__ = '0.5.6'
 
 
 def printerr(x):
@@ -27,7 +29,8 @@ class DO_WP_Maintain():
                  verbose=False,
                  debug=False,
                  hume=False,
-                 skip_plugins=None):
+                 skip_plugins=None,
+                 path_to_wpcli=None):
 
         # Even higher priority
         self.hume = hume
@@ -50,6 +53,17 @@ class DO_WP_Maintain():
         self.verbose = verbose
         self.debug = debug
         # Other runtime checks:
+        if path_to_wpcli is None:  # Path not provided, search in path
+            self.path_to_wpcli = shutil.which('wp')
+        else:  # path provided, set it
+            self.path_to_wpcli = path_to_wpcli
+
+        # Now that we have a path_to_wpcli, test it:
+        if not self.test_wpcli_works():
+            msg = 'No executable for wp-cli or provided one is invalid.'
+            printerr(msg)
+            sys.exit(1)
+
         if self.hume:  # Test
             try:
                 import hume
@@ -166,8 +180,22 @@ https://github.com/buanzo/hume/wiki''')
         retObj['stderr'] = result.stderr.decode('utf-8')
         return(retObj)
 
+    def test_wpcli_works(self):
+        r = False  # Return False by default
+        v = ''
+        cmd = [self.path_to_wpcli, 'cli', 'version']
+        r = self._run(cmd)
+        try:  # Quick check. Get version as valid test.
+            o = r['stdout']
+            v = o.strip().split('WP-CLI ')[1]
+        except Exception:
+            pass
+        if v.count('.') > 0:
+            r = True  # only case r will be True
+        return(r)
+
     def wp_run(self, path, args):
-        cmd = ['/usr/bin/wp', '--no-color']
+        cmd = [self.path_to_wpcli, '--no-color']
         if self.allow_root is True:  # __init__ checks EUID and --allow-root
             cmd.append('--allow-root')
         cmd.append('--path={}'.format(path))
@@ -365,22 +393,16 @@ https://github.com/buanzo/hume/wiki''')
             return(False)
         return(False)
 
-    def _extract_documentroots(self, myDict, someList=None):
-        # Credits to https://www.reddit.com/user/pushme2/
-        # https://www.reddit.com/r/learnpython/comments/25im14/python_3_searching_recursively_through_a/
-        if someList is None:
-            myList = []
-        else:
-            myList = someList
-        for key, value in myDict.items():
-            if self.debug:
-                printerr('Processing key {} of type {}'.format(key,type(key)))
-            if isinstance(value, dict):
-                self._extract_documentroots(value, myList)
-            else:
-                if key == 'documentroot':
-                    myList.append(value)
-        return(myList)
+    def _extract_documentroots(self,config):
+        paths = []
+        flatsplit = json.dumps(config).split(',')
+        for item in flatsplit:
+            item = item.strip()
+            if item.count('documentroot') == 1:
+                item = item.split(': ')[1].replace('"','').replace("'",'')
+                paths.append(item)
+                continue
+        return(paths)
 
     def get_apache2_documentroots(self):
         documentroots = []
@@ -508,6 +530,11 @@ DocumentRoots from.''')
                         action='store_true',
                         dest='skip_wpcli_update',
                         help='Do not update WP-CLI on startup')
+    parser.add_argument('--path-to-wpcli',
+                        dest='path_to_wpcli',
+                        default=None,
+                        metavar='PATH',
+                        help='''Path to the wp binary. If not specified, it will be searched in PATH.''')
     parser.add_argument('--skip-plugin',
                         action='append',
                         dest='skip_plugins',
@@ -539,7 +566,8 @@ Example: --run="plugin install wp-fail2ban --activate"''')
                               verbose=args.verbose,
                               debug=args.debug,
                               hume=args.hume,
-                              skip_plugins=args.skip_plugins)
+                              skip_plugins=args.skip_plugins,
+                              path_to_wpcli=args.path_to_wpcli)
     except Exception as exc:
         printerr(exc)
         sys.exit(1)

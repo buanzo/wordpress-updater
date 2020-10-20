@@ -30,6 +30,7 @@ class DO_WP_Maintain():
                  debug=False,
                  hume=False,
                  skip_plugins=None,
+                 skip_themes=None,
                  path_to_wpcli=None):
 
         # Even higher priority
@@ -91,6 +92,21 @@ https://github.com/buanzo/hume/wiki''')
                                'msg': msg,
                                'task': 'WPUPDATER'})
                 raise(RuntimeError(msg))
+
+        # Skip_Themes check needs to go after populating self.wp_list
+        self.skip_themes = []
+        if skip_themes is not None:
+            for item in skip_themes:
+                # Follows same logic as skip_plugins, see below
+                if self.valid_skip_theme_spec(item):
+                    self.skip_themes.append(item)
+                else:
+                    msg = '"{}" is not a valid theme name. Skipping.'.format(item)
+                    printerr(msg)
+                    if self.hume:
+                        self.Hume({'level': 'warning',
+                                   'msg': msg,
+                                   'task': 'WPUPDATER'})
 
         # Skip_Plugins check needs to go after populating self.wp_list
         self.skip_plugins = []
@@ -260,7 +276,19 @@ https://github.com/buanzo/hume/wiki''')
             for pluginName in wpl:
                 self.update_plugin(pluginName,path=path)
 
-    def skip_plugin_update(self,pluginName,path):
+    def skip_theme_update(self, themeName, path):
+        for item in self.skip_themes:
+            if item.count(':') == 0:
+                if themeName == item:
+                    return(True)
+            elif item.count(':') == 1:
+                # path:themeName
+                c = '{}:{}'.format(path, themeName)
+                if c == item:
+                    return(True)
+        return(False)
+
+    def skip_plugin_update(self, pluginName, path):
         for item in self.skip_plugins:
             if item.count(':') == 0:
                 # assume it is a pluginName global skip spec
@@ -276,13 +304,11 @@ https://github.com/buanzo/hume/wiki''')
     def update_plugin(self,pluginName,path):
         if self.skip_plugin_update(pluginName,path):
             if self.verbose:
-                printerr('Skipping update of "{}" in "{}"'.format(pluginName,
-                                                                  path))
+                printerr('Skipping update of plugin "{}" in "{}"'.format(pluginName, path))
             return
         args = ['plugin', 'update', pluginName]
         if self.verbose:
-            printerr('Updating Wordpress Plugin {} in {}'.format(pluginName,
-                                                                 path))
+            printerr('Updating Wordpress plugin {} in {}'.format(pluginName, path))
         r = self.wp_run(path=path, args=args)
         if r['status'] > 0:
             msg = 'Error updating plugin {} in {}: {}'.format(pluginName,
@@ -294,20 +320,23 @@ https://github.com/buanzo/hume/wiki''')
                            'msg': msg,
                            'task': 'WPUPDATER'})
 
-    def update_themes(self):
-        args = ['theme', 'update', '--all']
-        for site in self.wp_list:
-            path = site['path']
+    def update_themes(self, themeName, path):
+        if self.skip_theme_update(themeName,path):
             if self.verbose:
-                printerr('Updating All Wordpress Themes in {}'.format(path))
-            r = self.wp_run(path=path, args=args)
-            if r['status'] > 0:
-                msg = 'Error updating themes {}: {}'.format(path, r['stderr'])
-                printerr(msg)
-                if self.hume:
-                    self.Hume({'level': 'warning',
-                               'msg': msg,
-                               'task': 'WPUPDATER'})
+                printerr('Skipping update of theme "{}" in "{}"'.format(themeName, path))
+            return
+        args = ['theme', 'update', themeName]
+        if self.verbose:
+            printerr('Updating Wordpress theme {} in {}'.format(themeName, path))
+        r = self.wp_run(path=path, args=args)
+        if r['status'] > 0:
+            msg = 'Error updating theme {} in {}'.format(themeName, path, r['stderr']
+
+            printerr(msg)
+            if self.hume:
+                self.Hume({'level': 'warning',
+                           'msg': msg,
+                           'task': 'WPUPDATER'})
 
     def update_wpcli(self):
         args = ['cli', 'update', '--yes']
@@ -388,6 +417,20 @@ https://github.com/buanzo/hume/wiki''')
         elif item.count(':') == 1:
             # FIX: validate path and plugin name
             # But... as above: we will compare against dynamic list
+            return(True)
+        else:
+            return(False)
+        return(False)
+
+    def valid_skip_theme_spec(self,item):
+        # Yes, this function is exactly like valid_skip_plugin_spec
+        # I might deduplicate the code, but I need to analyze
+        # And yes, this might be true for all of skip_theme/skip_plugin
+        # functionality.
+        # TODO: regex for wordpress plugin names
+        if item.count(':') == 0:  # yes yes i know i can optimize this
+            return(True)
+        elif item.count(':') == 1:
             return(True)
         else:
             return(False)
@@ -539,7 +582,13 @@ DocumentRoots from.''')
                         action='append',
                         dest='skip_plugins',
                         metavar='PLUGIN_NAME',
-                        help='''Skip updating the indicated plugin. Can be specified multiple names.
+                        help='''Skip updating the indicated plugin. Can be specified multiple times.
+Multiple values separated by commas are NOT allowed''')
+    parser.add_argument('--skip-theme',
+                        action='append',
+                        dest='skip_themes',
+                        metavar='THEME_NAME',
+                        help='''Skip updating the indicated theme. Can be specified multiple times.
 Multiple values separated by commas are NOT allowed''')
     parser.add_argument('--run',
                         action='append',

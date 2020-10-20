@@ -13,21 +13,11 @@ def get_version():
             if line.startswith('__version__'):
                 return eval(line.split('=')[-1])
 
-
-# Imports content of README.md into setuptools' long_description
-this_directory = path.abspath(path.dirname(__file__))
-with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
-    long_description = f.read()
-
-
 setup(name='wordpressupdater',
       version=get_version(),
-      description='''Python module and CLI tool tool that reads Apache2
-configuration files and automagically performs wp-cli updates and
-maintenance on discovered wordpress installations.''',
-      long_description=long_description,
-      keywords='''wordpress,wp-cli,wrapper,apache2,automagically,
-digitalocean,devops,sysadmin''',
+      description="Discovers and updates wordpress instances by reading Apache2 virtualhost configuration",
+      long_description="Python module and CLI tool tool that reads Apache2 configuration files to let you automagically perform wp-cli updates and maintenance on discovered wordpress installations.",
+      keywords="wordpress,wp-cli,wrapper,apache2,automagically,digitalocean,devops,sysadmin",
       author='Arturo "Buanzo" Busleiman',
       author_email='buanzo@buanzo.com.ar',
       url='https://github.com/buanzo/wordpress-updater',
@@ -57,4 +47,5 @@ digitalocean,devops,sysadmin''',
          'Programming Language :: Python :: 3.6',
          'Programming Language :: Python :: 3.7',
          'Programming Language :: Python :: 3.8',
-         'Programming Language :: Python :: Implementation :: PyPy', ],)
+         'Programming Language :: Python :: Implementation :: PyPy',
+      ])

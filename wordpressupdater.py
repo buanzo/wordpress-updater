@@ -10,7 +10,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = '0.5.6'
+__version__ = '0.5.8'
 
 
 def printerr(x):
@@ -330,8 +330,7 @@ https://github.com/buanzo/hume/wiki''')
             printerr('Updating Wordpress theme {} in {}'.format(themeName, path))
         r = self.wp_run(path=path, args=args)
         if r['status'] > 0:
-            msg = 'Error updating theme {} in {}'.format(themeName, path, r['stderr']
-
+            msg = 'Error updating theme {} in {}'.format(themeName, path, r['stderr'])
             printerr(msg)
             if self.hume:
                 self.Hume({'level': 'warning',

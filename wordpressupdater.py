@@ -10,7 +10,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = '0.5.8'
+__version__ = '0.5.9'
 
 
 def printerr(x):
@@ -267,6 +267,16 @@ https://github.com/buanzo/hume/wiki''')
             wpl.extend(_wpl)
         return(wpl)
     
+    def get_theme_list(self,path):
+        wtl = []
+        for status in 'active','inactive':
+            args = ['theme', 'list','--status={}'.format(status), '--field=name']
+            r = self.wp_run(path=path, args=args)
+            _wtl = r['stdout'].split('\n')
+            _wtl = [x for x in _wtl if x]
+            wtl.extend(_wtl)
+        return(wtl)
+
     def update_plugins(self):
         for site in self.wp_list:
             path = site['path']
@@ -275,6 +285,15 @@ https://github.com/buanzo/hume/wiki''')
             wpl = self.get_plugin_list(path=path)
             for pluginName in wpl:
                 self.update_plugin(pluginName,path=path)
+
+    def update_themes(self):
+        for site in self.wp_list:
+            path = site['path']
+            if self.verbose:
+                printerr('Getting list of Wordpress Themes in {}'.format(path))
+            wtl = self.get_theme_list(path=path)
+            for themeName in wtl:
+                self.update_theme(themeName,path=path)
 
     def skip_theme_update(self, themeName, path):
         for item in self.skip_themes:
@@ -320,7 +339,7 @@ https://github.com/buanzo/hume/wiki''')
                            'msg': msg,
                            'task': 'WPUPDATER'})
 
-    def update_themes(self, themeName, path):
+    def update_theme(self, themeName, path):
         if self.skip_theme_update(themeName,path):
             if self.verbose:
                 printerr('Skipping update of theme "{}" in "{}"'.format(themeName, path))
@@ -615,6 +634,7 @@ Example: --run="plugin install wp-fail2ban --activate"''')
                               debug=args.debug,
                               hume=args.hume,
                               skip_plugins=args.skip_plugins,
+                              skip_themes=args.skip_themes,
                               path_to_wpcli=args.path_to_wpcli)
     except Exception as exc:
         printerr(exc)

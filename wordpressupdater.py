@@ -10,7 +10,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = '0.5.9'
+__version__ = '0.5.10'
 
 
 def printerr(x):
@@ -56,6 +56,12 @@ class DO_WP_Maintain():
         # Other runtime checks:
         if path_to_wpcli is None:  # Path not provided, search in path
             self.path_to_wpcli = shutil.which('wp')
+            if self.path_to_wpcli is None:
+                msg = '''"wp" command does not seem to be in PATH.
+Try --path-to-wpcli to set it manually, or install WP-CLI:
+https://wp-cli.org/#installing'''
+                printerr(msg)
+                sys.exit(1)
         else:  # path provided, set it
             self.path_to_wpcli = path_to_wpcli
 
@@ -225,6 +231,13 @@ https://github.com/buanzo/hume/wiki''')
             return(version)
         else:
             return(None)
+
+    def _wp_is_multisite(self, path):
+        args = ['core', 'is-installed', '--network']
+        multisite = self.wp_run(path=path, args=args)['status']
+        if multisite > 0:
+            return(False)
+        return(True)
 
     def update_core(self):
         args = ['core', 'update']

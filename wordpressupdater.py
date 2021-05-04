@@ -10,7 +10,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = '0.5.10'
+__version__ = '0.5.11'
 
 
 def printerr(x):
@@ -380,6 +380,22 @@ https://github.com/buanzo/hume/wiki''')
                            'msg': msg,
                            'task': 'WPUPDATER'})
 
+    def db_optimize(self):
+        args = ['db', 'optimize']
+        for site in self.wp_list:
+            path = site['path']
+            if self.verbose:
+                printerr('Optimizing database in {}'.format(path))
+            r = self.wp_run(path=path, args=args)
+            if r['status'] > 0:
+                msg = 'Error whilst optimizing database {}: {}'.format(path,
+                                                                       r['stderr'])
+                printerr(msg)
+                if self.hume:
+                    self.Hume({'level': 'warning',
+                               'msg': msg,
+                               'task': 'WPUPDATER'})
+
     def delete_expired_transients(self):
         args = ['transient', 'delete', '--expired']
         for site in self.wp_list:
@@ -576,7 +592,12 @@ DocumentRoots from.''')
                         default=False,
                         action='store_true',
                         dest='delete_expired_transients',
-                        help='Updates core, plugins and themes.')
+                        help='Deletes expired transients.')
+    parser.add_argument('-O', '--optimize-database',
+                        default=False,
+                        action='store_true',
+                        dest='optimize_database',
+                        help='Optimizes database.')
     parser.add_argument('--full',
                         default=False,
                         action='store_true',
@@ -675,6 +696,9 @@ Example: --run="plugin install wp-fail2ban --activate"''')
 
     if args.delete_expired_transients or args.full:
         dowp.delete_expired_transients()
+
+    if args.optimize_database or args.full:
+        dowp.optimize_database()
 
     if args.custom_cmds:
         dowp.run_custom_cmds(args.custom_cmds)

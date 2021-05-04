@@ -10,7 +10,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = '0.5.11'
+__version__ = '0.5.12'
 
 
 def printerr(x):
@@ -380,7 +380,7 @@ https://github.com/buanzo/hume/wiki''')
                            'msg': msg,
                            'task': 'WPUPDATER'})
 
-    def db_optimize(self):
+    def optimize_database(self):
         args = ['db', 'optimize']
         for site in self.wp_list:
             path = site['path']

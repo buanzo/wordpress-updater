@@ -10,7 +10,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = '0.5.12'
+__version__ = '0.5.15'
 
 
 def printerr(x):
@@ -31,6 +31,7 @@ class DO_WP_Maintain():
                  hume=False,
                  skip_plugins=None,
                  skip_themes=None,
+                 exec_timeout=None,
                  path_to_wpcli=None):
 
         # Even higher priority
@@ -51,6 +52,7 @@ class DO_WP_Maintain():
         # Internal setup
         self.allow_root = allow_root
         self.configpaths = configpaths
+        self.exec_timeout = exec_timeout
         self.verbose = verbose
         self.debug = debug
         # Other runtime checks:
@@ -183,7 +185,7 @@ https://github.com/buanzo/hume/wiki''')
                                     'siteurl': siteurl, })
         return(wp_list)
 
-    def _run(self, cmd, timeout=60):  # cmd must be a []
+    def _run(self, cmd, timeout):  # cmd must be a []
         # Is one minute enough as a timeout?
         # This function returns a dictionary
         # status = exit status
@@ -193,7 +195,7 @@ https://github.com/buanzo/hume/wiki''')
         if not isinstance(cmd, list):
             raise(ValueError("cmd is not a list"))
         result = subprocess.run(cmd,
-                                timeout=timeout,  # 10s default
+                                timeout=timeout,  # 300s default
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
         retObj = {}
@@ -206,7 +208,7 @@ https://github.com/buanzo/hume/wiki''')
         r = False  # Return False by default
         v = ''
         cmd = [self.path_to_wpcli, 'cli', 'version']
-        r = self._run(cmd)
+        r = self._run(cmd,timeout=self.exec_timeout)
         try:  # Quick check. Get version as valid test.
             o = r['stdout']
             v = o.strip().split('WP-CLI ')[1]
@@ -222,7 +224,7 @@ https://github.com/buanzo/hume/wiki''')
             cmd.append('--allow-root')
         cmd.append('--path={}'.format(path))
         cmd.extend(args)
-        return(self._run(cmd))
+        return(self._run(cmd,timeout=self.exec_timeout))
 
     def _wp_get_version(self, path):
         args = ['core', 'version', ]
@@ -602,7 +604,7 @@ DocumentRoots from.''')
                         default=False,
                         action='store_true',
                         dest='full',
-                        help='Updates all, and deletes expired transients.')
+                        help='Updates all, and deletes expired transients. Does NOT optimize DB.')
     parser.add_argument('--hume',
                         action='store_true',
                         dest='hume',
@@ -649,6 +651,11 @@ Multiple values separated by commas are NOT allowed''')
                         help='''Construct and run a wp-cli command on each wordpress instance.
 Necessary arguments will be automatically added.
 Example: --run="plugin install wp-fail2ban --activate"''')
+    parser.add_argument('--exec-timeout',
+                        dest='exec_timeout',
+                        metavar='"SECONDS"',
+                        default=300,
+                        help='''Subprocess execution timeout. Defaults to 5m / 300s.''')
 
     # Now, parse the args
     args = parser.parse_args()
@@ -669,7 +676,8 @@ Example: --run="plugin install wp-fail2ban --activate"''')
                               hume=args.hume,
                               skip_plugins=args.skip_plugins,
                               skip_themes=args.skip_themes,
-                              path_to_wpcli=args.path_to_wpcli)
+                              path_to_wpcli=args.path_to_wpcli,
+                              exec_timeout=args.exec_timeout)
     except Exception as exc:
         printerr(exc)
         sys.exit(1)
@@ -697,7 +705,7 @@ Example: --run="plugin install wp-fail2ban --activate"''')
     if args.delete_expired_transients or args.full:
         dowp.delete_expired_transients()
 
-    if args.optimize_database or args.full:
+    if args.optimize_database:
         dowp.optimize_database()
 
     if args.custom_cmds:

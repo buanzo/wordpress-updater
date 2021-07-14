@@ -2,7 +2,9 @@
 
 wordpress-updater is a script I coded for my digitalocean LAMP droplets that
 run wordpress sites. I prefer to update all the time, and deal with websites
-breaking than deal with websites being abused and the associated problems.
+breaking than deal with websites being abused and the associated problems, see below for an example run:
+
+![Wordpress Updater example run](/screenshots/wpupdater.png?raw=true "wpupdater doing its thing")
 
 Basically, it is a simple script to call wp-cli {core,plugin,theme} update
 on each wordpress setup it finds. It uses Apache's configuration files to

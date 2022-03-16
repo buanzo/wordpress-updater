@@ -10,7 +10,7 @@ from pathlib import Path
 from apacheconfig import make_loader
 from pprint import pprint
 
-__version__ = '0.5.15'
+__version__ = '0.5.16'
 
 
 def printerr(x):
@@ -24,6 +24,7 @@ def pprinterr(x):
 class DO_WP_Maintain():
     def __init__(self,
                  configpaths=None,
+                 explicit_path=False,
                  requiredtags=None,
                  allow_root=False,
                  verbose=False,
@@ -133,7 +134,10 @@ https://github.com/buanzo/hume/wiki''')
                                    'msg': msg,
                                    'task': 'WPUPDATER'})
 
-        self.roots_list = self.get_apache2_documentroots()
+        if self.explicit_path is True:
+            self.roots_list = [self.configpaths]
+        else:
+            self.roots_list = self.get_apache2_documentroots()
         if len(self.roots_list) == 0:
             msg = "No Apache2 DocumentRoots found. Check paths."
             if self.hume:
@@ -656,6 +660,11 @@ Example: --run="plugin install wp-fail2ban --activate"''')
                         metavar='"SECONDS"',
                         default=300,
                         help='''Subprocess execution timeout. Defaults to 5m / 300s.''')
+    parser.add_argument('--explicit-path',
+                        default=False,
+                        action='store_true',
+                        dest='explicit_path',
+                        help='Treat <file> argument as a Wordpress root dir, skip Apache Config')
 
     # Now, parse the args
     args = parser.parse_args()
@@ -670,6 +679,7 @@ Example: --run="plugin install wp-fail2ban --activate"''')
     try:
         dowp = DO_WP_Maintain(requiredtags=args.requiredtags,
                               configpaths=args.file,
+                              explicit_path=args.explicit_path,
                               allow_root=args.allow_root,
                               verbose=args.verbose,
                               debug=args.debug,
